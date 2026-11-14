@@ -29,7 +29,17 @@ database:
 
 deployment:
   namespace: medical-appointment
+  imagePullSecret: registry-secret
+  name: medical-appointment-api-generic-test
+  containerName: medical-appointment-api
+  serviceName: medical-appointment-api-generic-test-service
   replicas: 1
   serviceType: ClusterIP
-  servicePort: 8080
+  servicePort: 8081
   targetPort: 8080
+
+  database:
+    url: jdbc:mysql://mysql-service:3306/MedicalASDb?createDatabaseIfNotExist=true
+    username: root
+    secretName: mysql-secret
+    passwordKey: MYSQL_ROOT_PASSWORD

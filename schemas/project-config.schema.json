@@ -1,4 +1,3 @@
-
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Generic Java Application Configuration",
@@ -98,9 +97,31 @@
     },
     "deployment": {
       "type": "object",
-      "required": ["namespace", "replicas", "serviceType", "servicePort", "targetPort"],
+      "required": [
+        "namespace",
+        "name",
+        "containerName",
+        "serviceName",
+        "replicas",
+        "serviceType",
+        "servicePort",
+        "targetPort",
+        "database"
+      ],
       "properties": {
         "namespace": {
+          "type": "string"
+        },
+        "imagePullSecret": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "containerName": {
+          "type": "string"
+        },
+        "serviceName": {
           "type": "string"
         },
         "replicas": {
@@ -119,6 +140,25 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 65535
+        },
+        "database": {
+          "type": "object",
+          "required": ["url", "username", "secretName", "passwordKey"],
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "username": {
+              "type": "string"
+            },
+            "secretName": {
+              "type": "string"
+            },
+            "passwordKey": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
