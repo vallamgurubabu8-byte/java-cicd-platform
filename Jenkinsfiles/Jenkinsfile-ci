@@ -69,22 +69,32 @@ pipeline {
         stage('Load Project Configuration') {
             steps {
                 script {
-                    def configJson
+                    def configOutput = sh(
+                        script: """
+                            python3 - <<'PYTHON'
+import yaml
 
-                    withEnv(["CONFIG_FILE=${params.CONFIG_FILE}"]) {
-                        configJson = sh(
-                            script: '''python3 -c "import json,os,yaml; print(json.dumps(yaml.safe_load(open(os.environ['CONFIG_FILE']))))"''',
-                            returnStdout: true
-                        ).trim()
-                    }
+with open('${params.CONFIG_FILE}') as file:
+    config = yaml.safe_load(file)
 
-                    def config = new groovy.json.JsonSlurperClassic().parseText(configJson)
+print(config['project']['repository'])
+print(config['build']['tool'])
+print(config['build']['javaVersion'])
+print(config['container']['imageName'])
+print(config['container']['dockerfile'])
+PYTHON
+                        """,
+                        returnStdout: true
+                    ).trim()
 
-                    env.APP_REPOSITORY = config.project.repository
-                    env.BUILD_TOOL = config.build.tool
-                    env.JAVA_VERSION = config.build.javaVersion
-                    env.IMAGE_NAME = config.container.imageName
-                    env.DOCKERFILE = config.container.dockerfile
+                    def configValues = configOutput.readLines()
+
+                    env.APP_REPOSITORY = configValues[0]
+                    env.BUILD_TOOL = configValues[1]
+                    env.JAVA_VERSION = configValues[2]
+                    env.IMAGE_NAME = configValues[3]
+                    env.DOCKERFILE = configValues[4]
+
                     env.FULL_IMAGE = "${params.REGISTRY}/${env.IMAGE_NAME}:${params.IMAGE_TAG?.trim() ?: "build-${env.BUILD_NUMBER}"}"
 
                     echo "Repository: ${env.APP_REPOSITORY}"
