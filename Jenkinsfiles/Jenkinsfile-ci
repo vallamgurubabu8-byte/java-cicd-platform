@@ -16,7 +16,7 @@ pipeline {
 
         string(
             name: 'REGISTRY',
-            defaultValue: 'local-registry:5000',
+            defaultValue: 'host.docker.internal:5000',
             description: 'Docker registry address'
         )
 
