@@ -1,0 +1,35 @@
+
+project:
+  name: medical-appointment-api
+  repository: https://github.com/vallamgurubabu8-byte/MedicalAppointmentSystemAPI.git
+  defaultBranch: main
+
+build:
+  tool: maven
+  javaVersion: "21"
+  artifactPath: target/*.jar
+  testCommand: verify
+
+container:
+  imageName: medical-appointment-api
+  dockerfile: Dockerfile
+  port: 8080
+
+database:
+  enabled: true
+  mode: managed
+  type: mysql
+  version: "8.4"
+  databaseName: MedicalASDb
+  storage: 5Gi
+  credentials:
+    username: root
+    secretName: mysql-secret
+    passwordKey: MYSQL_ROOT_PASSWORD
+
+deployment:
+  namespace: medical-appointment
+  replicas: 1
+  serviceType: ClusterIP
+  servicePort: 8080
+  targetPort: 8080

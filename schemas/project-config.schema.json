@@ -1,0 +1,128 @@
+
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Generic Java Application Configuration",
+  "type": "object",
+  "required": ["project", "build", "container", "database", "deployment"],
+  "properties": {
+    "project": {
+      "type": "object",
+      "required": ["name", "repository", "defaultBranch"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "repository": {
+          "type": "string",
+          "format": "uri"
+        },
+        "defaultBranch": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "build": {
+      "type": "object",
+      "required": ["tool", "javaVersion", "artifactPath", "testCommand"],
+      "properties": {
+        "tool": {
+          "enum": ["maven", "gradle"]
+        },
+        "javaVersion": {
+          "enum": ["17", "21", "25"]
+        },
+        "artifactPath": {
+          "type": "string"
+        },
+        "testCommand": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "container": {
+      "type": "object",
+      "required": ["imageName", "dockerfile", "port"],
+      "properties": {
+        "imageName": {
+          "type": "string"
+        },
+        "dockerfile": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      },
+      "additionalProperties": false
+    },
+    "database": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": ["managed", "external"]
+        },
+        "type": {
+          "enum": ["mysql", "postgresql"]
+        },
+        "version": {
+          "type": "string"
+        },
+        "databaseName": {
+          "type": "string"
+        },
+        "storage": {
+          "type": "string"
+        },
+        "credentials": {
+          "type": "object",
+          "required": ["username", "secretName", "passwordKey"],
+          "properties": {
+            "username": {"type": "string"},
+            "secretName": {"type": "string"},
+            "passwordKey": {"type": "string"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "deployment": {
+      "type": "object",
+      "required": ["namespace", "replicas", "serviceType", "servicePort", "targetPort"],
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "serviceType": {
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "servicePort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "targetPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
