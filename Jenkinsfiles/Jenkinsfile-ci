@@ -1,0 +1,183 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(
+            name: 'CONFIG_FILE',
+            defaultValue: 'project-configs/medical-appointment.yaml',
+            description: 'Project YAML configuration path'
+        )
+
+        string(
+            name: 'GIT_BRANCH',
+            defaultValue: 'main',
+            description: 'Application Git branch'
+        )
+
+        string(
+            name: 'REGISTRY',
+            defaultValue: 'localhost:5000',
+            description: 'Docker registry address'
+        )
+
+        string(
+            name: 'IMAGE_TAG',
+            defaultValue: '',
+            description: 'Optional Docker image tag; defaults to build number'
+        )
+    }
+
+    environment {
+        REGISTRY_CREDENTIALS = 'docker-registry-creds'
+    }
+
+    stages {
+
+        stage('Checkout Platform Repository') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Validate Parameters') {
+            steps {
+                script {
+                    if (!(params.CONFIG_FILE ==~ /project-configs\/[A-Za-z0-9._-]+\.yaml/)) {
+                        error('Invalid CONFIG_FILE path')
+                    }
+
+                    if (!(params.GIT_BRANCH ==~ /[A-Za-z0-9._\/-]+/)) {
+                        error('Invalid Git branch')
+                    }
+
+                    if (!(params.REGISTRY ==~ /[A-Za-z0-9.:-]+/)) {
+                        error('Invalid registry address')
+                    }
+                }
+            }
+        }
+
+        stage('Validate Project Configuration') {
+            steps {
+                sh """
+                    python3 scripts/validate-config.py \
+                    --config '${params.CONFIG_FILE}'
+                """
+            }
+        }
+
+        stage('Load Project Configuration') {
+            steps {
+                script {
+                    def configJson
+
+                    withEnv(["CONFIG_FILE=${params.CONFIG_FILE}"]) {
+                        configJson = sh(
+                            script: '''python3 -c "import json,os,yaml; print(json.dumps(yaml.safe_load(open(os.environ['CONFIG_FILE']))))"''',
+                            returnStdout: true
+                        ).trim()
+                    }
+
+                    def config = new groovy.json.JsonSlurperClassic().parseText(configJson)
+
+                    env.APP_REPOSITORY = config.project.repository
+                    env.BUILD_TOOL = config.build.tool
+                    env.JAVA_VERSION = config.build.javaVersion
+                    env.IMAGE_NAME = config.container.imageName
+                    env.DOCKERFILE = config.container.dockerfile
+                    env.FULL_IMAGE = "${params.REGISTRY}/${env.IMAGE_NAME}:${params.IMAGE_TAG?.trim() ?: "build-${env.BUILD_NUMBER}"}"
+
+                    echo "Repository: ${env.APP_REPOSITORY}"
+                    echo "Build tool: ${env.BUILD_TOOL}"
+                    echo "Java version: ${env.JAVA_VERSION}"
+                    echo "Docker image: ${env.FULL_IMAGE}"
+                }
+            }
+        }
+
+        stage('Checkout Application') {
+            steps {
+                dir('application') {
+                    git branch: params.GIT_BRANCH,
+                        url: env.APP_REPOSITORY
+                }
+            }
+        }
+
+        stage('Build and Test') {
+            steps {
+                dir('application') {
+                    script {
+                        if (env.BUILD_TOOL == 'maven') {
+                            sh '''
+                                chmod +x mvnw
+                                ./mvnw -B clean verify
+                            '''
+                        } else if (env.BUILD_TOOL == 'gradle') {
+                            sh '''
+                                chmod +x gradlew
+                                ./gradlew clean test build
+                            '''
+                        } else {
+                            error("Unsupported build tool: ${env.BUILD_TOOL}")
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir('application') {
+                    script {
+                        if (!fileExists(env.DOCKERFILE)) {
+                            error("Dockerfile not found: ${env.DOCKERFILE}")
+                        }
+
+                        sh """
+                            docker build \
+                            -f '${env.DOCKERFILE}' \
+                            -t '${env.FULL_IMAGE}' .
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: env.REGISTRY_CREDENTIALS,
+                        usernameVariable: 'REGISTRY_USER',
+                        passwordVariable: 'REGISTRY_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+                        echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" \
+                            -u "$REGISTRY_USER" --password-stdin
+
+                        docker push "$FULL_IMAGE"
+
+                        docker logout "$REGISTRY"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "CI pipeline completed successfully: ${env.FULL_IMAGE}"
+        }
+
+        failure {
+            echo 'CI pipeline failed. Check the stage logs.'
+        }
+
+        always {
+            echo 'Generic Java CI pipeline finished.'
+        }
+    }
+}
