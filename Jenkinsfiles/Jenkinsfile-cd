@@ -226,24 +226,28 @@ post {
             )
         ]) {
             script {
-                def emailStatus = sh(
-                    script: '''
-                        chmod +x scripts/send-health-report.sh
 
-                        export PROJECT_NAME="Medical Appointment API"
-                        export DEPLOYMENT_STATUS="SUCCESS"
+		def emailStatus = sh(
+        	script: '''
+            	chmod +x scripts/send-health-report.sh
+            	chmod +x scripts/health-check.sh
 
-                        ./scripts/send-health-report.sh
-                    ''',
-                    returnStatus: true
-                )
+            	export PROJECT_NAME="Medical Appointment API"
+            	export DEPLOYMENT_STATUS="SUCCESS"
 
-                if (emailStatus != 0) {
-                    echo "WARNING: Email or health check failed. Exit code: ${emailStatus}"
-                    currentBuild.result = 'UNSTABLE'
-                } else {
-                    echo 'Health report email sent successfully.'
-                }
+            	bash scripts/send-health-report.sh
+        	''',
+        	returnStatus: true
+    		)
+
+    	if (emailStatus != 0) {
+    	    	echo "WARNING: Email notification failed. Exit code: ${emailStatus}"
+        	currentBuild.result = 'UNSTABLE'
+    	} else {
+        	echo 'Health report email sent successfully.'
+    	}		
+
+
             }
         }
     }
