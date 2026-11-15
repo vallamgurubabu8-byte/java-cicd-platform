@@ -213,26 +213,36 @@ EOF
         }
 
     }
-   post {
-      success {
-          echo "CD pipeline completed successfully: ${env.FULL_IMAGE}"
+post {
+    success {
+        echo "CD pipeline completed successfully: ${env.FULL_IMAGE}"
 
-          echo "Starting post-deployment health report email..."
-
-          script {
-             def emailStatus = sh(
-                script: '''
-                    chmod +x scripts/send-health-report.sh
-                    ./scripts/send-health-report.sh
-                ''',
-                returnStatus: true
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'gmail-smtp-credentials',
+                usernameVariable: 'SMTP_USERNAME',
+                passwordVariable: 'SMTP_PASSWORD'
             )
+        ]) {
+            script {
+                def emailStatus = sh(
+                    script: '''
+                        chmod +x scripts/send-health-report.sh
 
-            if (emailStatus == 0) {
-                echo 'Health report email sent successfully.'
-            } else {
-                echo "WARNING: Health report email or health check failed. Exit code: ${emailStatus}"
-                currentBuild.result = 'UNSTABLE'
+                        export PROJECT_NAME="Medical Appointment API"
+                        export DEPLOYMENT_STATUS="SUCCESS"
+
+                        ./scripts/send-health-report.sh
+                    ''',
+                    returnStatus: true
+                )
+
+                if (emailStatus != 0) {
+                    echo "WARNING: Email or health check failed. Exit code: ${emailStatus}"
+                    currentBuild.result = 'UNSTABLE'
+                } else {
+                    echo 'Health report email sent successfully.'
+                }
             }
         }
     }
@@ -244,6 +254,5 @@ EOF
     always {
         echo 'Generic Java CD pipeline finished.'
     }
-  }
- 
+} 
 }

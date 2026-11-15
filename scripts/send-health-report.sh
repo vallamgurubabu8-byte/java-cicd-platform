@@ -1,18 +1,15 @@
-#!/bin/bash
 
-# Java CI/CD Platform - Deployment Health Report
+#!/bin/bash
 
 set -uo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HEALTH_SCRIPT="$PROJECT_DIR/scripts/health-check.sh"
 
-# Email recipients
 SENDER="vallamgurubabu@gmail.com"
 RECIPIENT="vallamgurubabu8@gmail.com"
 CC_RECIPIENT="sureshtechie69@gmail.com,gurubabuvallam@gmail.com"
 
-# Jenkins build details
 PROJECT_NAME="${PROJECT_NAME:-Medical Appointment API}"
 JOB_NAME="${JOB_NAME:-Local Execution}"
 BUILD_NUMBER="${BUILD_NUMBER:-Manual}"
@@ -21,30 +18,66 @@ NAMESPACE="${NAMESPACE:-medical-appointment}"
 DEPLOYMENT_NAME="${DEPLOYMENT_NAME:-medical-appointment-api-generic-test}"
 DEPLOYMENT_STATUS="${DEPLOYMENT_STATUS:-SUCCESS}"
 
+# Credentials are supplied by Jenkins
+if [[ -z "${SMTP_USERNAME:-}" || -z "${SMTP_PASSWORD:-}" ]]; then
+    echo "[ERROR] SMTP credentials are not available."
+    exit 2
+fi
+
 REPORT="$(mktemp)"
 EMAIL="$(mktemp)"
+MSMTP_CONFIG="$(mktemp)"
 
-trap 'rm -f "$REPORT" "$EMAIL"' EXIT
+cleanup() {
+    rm -f "$REPORT" "$EMAIL" "$MSMTP_CONFIG"
+}
+trap cleanup EXIT
 
-echo "Starting application health checks..."
+chmod 600 "$MSMTP_CONFIG"
 
-if [ ! -f "$HEALTH_SCRIPT" ]; then
-    echo "[ERROR] Health check script not found: $HEALTH_SCRIPT" > "$REPORT"
-    HEALTH_STATUS=1
+# Generate temporary Gmail SSL configuration
+cat > "$MSMTP_CONFIG" <<EOF
+defaults
+auth on
+tls on
+tls_starttls off
+tls_trust_file /etc/ssl/certs/ca-certificates.crt
+
+account gmail
+host smtp.gmail.com
+port 465
+from $SMTP_USERNAME
+user $SMTP_USERNAME
+password $SMTP_PASSWORD
+
+account default : gmail
+EOF
+
+echo "[INFO] Running application health checks..."
+
+if bash "$HEALTH_SCRIPT"; then
+    HEALTH_STATUS=0
+    HEALTH_RESULT="SUCCESS"
 else
-    bash "$HEALTH_SCRIPT" > "$REPORT" 2>&1
     HEALTH_STATUS=$?
+    HEALTH_RESULT="FAILED"
+fi
+
+# Capture health-check output for the report
+if bash "$HEALTH_SCRIPT" > "$REPORT" 2>&1; then
+    HEALTH_STATUS=0
+    HEALTH_RESULT="SUCCESS"
+else
+    HEALTH_STATUS=$?
+    HEALTH_RESULT="FAILED"
 fi
 
 if [ "$HEALTH_STATUS" -eq 0 ]; then
     SUBJECT="[SUCCESS] $PROJECT_NAME - Deployment Health Report"
-    HEALTH_RESULT="SUCCESS"
 else
     SUBJECT="[FAILED] $PROJECT_NAME - Deployment Health Report"
-    HEALTH_RESULT="FAILED"
 fi
 
-# Construct email headers and body
 {
     printf 'From: %s\n' "$SENDER"
     printf 'To: %s\n' "$RECIPIENT"
@@ -58,11 +91,10 @@ fi
     cat <<EOF
 Hello Team,
 
-The Continuous Deployment pipeline has completed its deployment stage.
-Please find the application health-check report below.
+The Continuous Deployment pipeline has completed.
 
 ==================================================
-             DEPLOYMENT INFORMATION
+DEPLOYMENT INFORMATION
 ==================================================
 
 Project Name       : $PROJECT_NAME
@@ -70,13 +102,13 @@ Jenkins Job        : $JOB_NAME
 Build Number       : $BUILD_NUMBER
 Deployment Status  : $DEPLOYMENT_STATUS
 Health Check       : $HEALTH_RESULT
-Kubernetes Namespace : $NAMESPACE
+Kubernetes Namespace: $NAMESPACE
 Deployment Name    : $DEPLOYMENT_NAME
 Build URL          : $BUILD_URL
 Execution Date     : $(date '+%d-%m-%Y %H:%M:%S')
 
 ==================================================
-                HEALTH CHECK REPORT
+HEALTH CHECK REPORT
 ==================================================
 
 EOF
@@ -85,31 +117,21 @@ EOF
 
     cat <<EOF
 
-==================================================
-                    SUMMARY
-==================================================
-
-Project: $PROJECT_NAME
-Deployment: $DEPLOYMENT_STATUS
-Health Check: $HEALTH_RESULT
-
 Regards,
 Java CI/CD Automation
 Jenkins Notification Service
 
-This is an automated email. Please do not reply.
+This is an automated email.
 EOF
 } > "$EMAIL"
 
-# Send email to To and CC recipients
-if msmtp --account=gmail -t < "$EMAIL"; then
-    echo "[PASS] Health report email sent successfully."
-    echo "[INFO] To: $RECIPIENT"
-    echo "[INFO] CC: $CC_RECIPIENT"
+echo "[INFO] Sending health report..."
+
+if msmtp --file="$MSMTP_CONFIG" -t < "$EMAIL"; then
+    echo "[PASS] Email sent successfully."
 else
-    echo "[ERROR] Failed to send health report email."
+    echo "[ERROR] Email delivery failed."
     exit 2
 fi
 
-# Return health-check result
 exit "$HEALTH_STATUS"
