@@ -24,3 +24,12 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local development artifacts
+/workspace/
+/backups/
+/Jenkinsfiles/Jenkinsfile-ci.bak
+/{
+
+# Local script backups
+/scripts/health-check.sh.bak

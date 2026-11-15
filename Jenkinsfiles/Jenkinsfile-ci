@@ -57,11 +57,20 @@ pipeline {
             }
         }
 
+        stage('Check Build Environment') {
+            steps {
+                sh '''
+                    chmod +x scripts/check-ci-environment.sh
+                    ./scripts/check-ci-environment.sh
+                '''
+            }
+        }
+
         stage('Validate Project Configuration') {
             steps {
                 sh """
-                    python3 scripts/validate-config.py \
-                    --config '${params.CONFIG_FILE}'
+                    chmod +x scripts/validate-config.sh
+                    ./scripts/validate-config.sh '${params.CONFIG_FILE}'
                 """
             }
         }

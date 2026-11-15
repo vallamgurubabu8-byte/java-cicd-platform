@@ -50,8 +50,17 @@ pipeline {
         stage('Validate Project Configuration') {
             steps {
                 sh """
-                    python3 scripts/validate-config.py \
-                    --config '${params.CONFIG_FILE}'
+                    chmod +x scripts/validate-config.sh
+                    ./scripts/validate-config.sh '${params.CONFIG_FILE}'
+                """
+            }
+        }
+
+        stage('Check CD Environment') {
+            steps {
+                sh """
+                    chmod +x scripts/check-cd-environment.sh
+                    ./scripts/check-cd-environment.sh '${params.CONFIG_FILE}'
                 """
             }
         }
@@ -194,6 +203,15 @@ EOF
                 '''
             }
         }
+        stage('Health Check') {
+            steps {
+                sh """
+                    chmod +x scripts/health-check.sh
+                    ./scripts/health-check.sh '${params.CONFIG_FILE}'
+                """
+            }
+        }
+
     }
 
     post {
