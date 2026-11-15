@@ -16,16 +16,20 @@ container:
   port: 8080
 
 database:
+  url: jdbc:mysql://mysql-service:3306/MedicalASDb?createDatabaseIfNotExist=true
+    username: root
+    secretName: mysql-secret
+    passwordKey: MYSQL_ROOT_PASSWORD
   enabled: true
   mode: managed
   type: mysql
   version: "8.4"
   databaseName: MedicalASDb
   storage: 5Gi
-  credentials:
-    username: root
-    secretName: mysql-secret
-    passwordKey: MYSQL_ROOT_PASSWORD
+  # credentials:
+  #   username: root
+  #   secretName: mysql-secret
+  #   passwordKey: MYSQL_ROOT_PASSWORD
 
 deployment:
   namespace: medical-appointment
