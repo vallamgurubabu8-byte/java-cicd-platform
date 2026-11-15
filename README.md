@@ -435,7 +435,7 @@ Through this project, I am gaining practical experience with:
 
 **Vallam Guru Babu**
 
-Java Backend Developer | Spring Boot | Microservices | Jenkins | Docker | Kubernetes
+Java Fullstack Developer | React Js | Spring Boot | Microservices | AWS | Jenkins | Docker | Kubernetes
 
 I believe in continuous learning, practical implementation, and building solutions that solve real engineering problems.
 
