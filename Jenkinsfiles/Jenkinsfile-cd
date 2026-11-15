@@ -203,16 +203,17 @@ EOF
                 '''
             }
         }
-        stage('Health Check') {
-            steps {
-                sh """
-                    chmod +x scripts/health-check.sh
-                    ./scripts/health-check.sh '${params.CONFIG_FILE}'
-                """
-            }
-        }
-
+  stage('Health Check') {
+      steps {
+          sh """
+              chmod +x scripts/health-check.sh
+              chmod +x scripts/validate-config.sh
+              bash scripts/health-check.sh '${params.CONFIG_FILE}'
+          """
+      }
+     }
     }
+
 post {
     success {
         echo "CD pipeline completed successfully: ${env.FULL_IMAGE}"
