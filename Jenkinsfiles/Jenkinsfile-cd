@@ -213,18 +213,37 @@ EOF
         }
 
     }
+   post {
+      success {
+          echo "CD pipeline completed successfully: ${env.FULL_IMAGE}"
 
-    post {
-        success {
-            echo "CD pipeline completed: ${env.FULL_IMAGE}"
-        }
+          echo "Starting post-deployment health report email..."
 
-        failure {
-            echo 'CD pipeline failed. Check the stage logs.'
-        }
+          script {
+             def emailStatus = sh(
+                script: '''
+                    chmod +x scripts/send-health-report.sh
+                    ./scripts/send-health-report.sh
+                ''',
+                returnStatus: true
+            )
 
-        always {
-            echo 'Generic Java CD pipeline finished.'
+            if (emailStatus == 0) {
+                echo 'Health report email sent successfully.'
+            } else {
+                echo "WARNING: Health report email or health check failed. Exit code: ${emailStatus}"
+                currentBuild.result = 'UNSTABLE'
+            }
         }
     }
+
+    failure {
+        echo 'CD pipeline failed. Check the stage logs.'
+    }
+
+    always {
+        echo 'Generic Java CD pipeline finished.'
+    }
+  }
+ 
 }
