@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -17,17 +18,25 @@ pipeline {
         string(
             name: 'IMAGE_TAG',
             defaultValue: '',
-            description: 'Existing image tag to deploy, e.g. build-5'
+            description: 'Required image tag to deploy, e.g. build-12'
         )
     }
 
     stages {
+
+        // ==========================================
+        // 1. CHECKOUT PLATFORM REPOSITORY
+        // ==========================================
 
         stage('Checkout Platform Repository') {
             steps {
                 checkout scm
             }
         }
+
+        // ==========================================
+        // 2. VALIDATE PARAMETERS
+        // ==========================================
 
         stage('Validate Parameters') {
             steps {
@@ -47,23 +56,41 @@ pipeline {
             }
         }
 
+        // ==========================================
+        // 3. VALIDATE PROJECT CONFIGURATION
+        // ==========================================
+
         stage('Validate Project Configuration') {
             steps {
-                sh """
+                sh '''
+                    set -eu
+
                     chmod +x scripts/validate-config.sh
-                    ./scripts/validate-config.sh '${params.CONFIG_FILE}'
-                """
+
+                    bash scripts/validate-config.sh "$CONFIG_FILE"
+                '''
             }
         }
 
+        // ==========================================
+        // 4. CHECK CD ENVIRONMENT
+        // ==========================================
+
         stage('Check CD Environment') {
             steps {
-                sh """
+                sh '''
+                    set -eu
+
                     chmod +x scripts/check-cd-environment.sh
-                    ./scripts/check-cd-environment.sh '${params.CONFIG_FILE}'
-                """
+
+                    bash scripts/check-cd-environment.sh "$CONFIG_FILE"
+                '''
             }
         }
+
+        // ==========================================
+        // 5. LOAD DEPLOYMENT CONFIGURATION
+        // ==========================================
 
         stage('Load Deployment Configuration') {
             steps {
@@ -125,6 +152,10 @@ PYTHON
             }
         }
 
+        // ==========================================
+        // 6. DEPLOY TO KUBERNETES
+        // ==========================================
+
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
@@ -183,9 +214,15 @@ EOF
             }
         }
 
+        // ==========================================
+        // 7. VERIFY DEPLOYMENT
+        // ==========================================
+
         stage('Verify Deployment') {
             steps {
                 sh '''
+                    set -eu
+
                     kubectl rollout status \
                         deployment/${DEPLOYMENT_NAME} \
                         -n ${NAMESPACE} \
@@ -203,61 +240,86 @@ EOF
                 '''
             }
         }
-  stage('Health Check') {
-      steps {
-          sh """
-              chmod +x scripts/health-check.sh
-              chmod +x scripts/validate-config.sh
-              bash scripts/health-check.sh '${params.CONFIG_FILE}'
-          """
-      }
-     }
-    }
 
-post {
-    success {
-        echo "CD pipeline completed successfully: ${env.FULL_IMAGE}"
+        // ==========================================
+        // 8. APPLICATION HEALTH CHECK
+        // ==========================================
 
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'gmail-smtp-credentials',
-                usernameVariable: 'SMTP_USERNAME',
-                passwordVariable: 'SMTP_PASSWORD'
-            )
-        ]) {
-            script {
+        stage('Health Check') {
+            steps {
+                sh '''
+                    set -eu
 
-		def emailStatus = sh(
-        	script: '''
-            	chmod +x scripts/send-health-report.sh
-            	chmod +x scripts/health-check.sh
+                    chmod +x scripts/health-check.sh
+                    chmod +x scripts/validate-config.sh
 
-            	export PROJECT_NAME="Medical Appointment API"
-            	export DEPLOYMENT_STATUS="SUCCESS"
-
-            	bash scripts/send-health-report.sh
-        	''',
-        	returnStatus: true
-    		)
-
-    	if (emailStatus != 0) {
-    	    	echo "WARNING: Email notification failed. Exit code: ${emailStatus}"
-        	currentBuild.result = 'UNSTABLE'
-    	} else {
-        	echo 'Health report email sent successfully.'
-    	}		
-
-
+                    bash scripts/health-check.sh "$CONFIG_FILE"
+                '''
             }
         }
     }
 
-    failure {
-        echo 'CD pipeline failed. Check the stage logs.'
-    }
+    // ==============================================
+    // POST BUILD ACTIONS
+    // ==============================================
 
-    always {
-        echo 'Generic Java CD pipeline finished.'
+    post {
+
+        // ==========================================
+        // SUCCESS NOTIFICATION
+        // ==========================================
+
+        success {
+            echo "CD pipeline completed successfully: ${env.FULL_IMAGE}"
+
+            withCredentials([
+                usernamePassword(
+                    credentialsId: 'gmail-smtp-credentials',
+                    usernameVariable: 'SMTP_USERNAME',
+                    passwordVariable: 'SMTP_PASSWORD'
+                )
+            ]) {
+                script {
+
+                    def emailStatus = sh(
+                        script: '''
+                            set -eu
+
+                            chmod +x scripts/send-health-report.sh
+                            chmod +x scripts/health-check.sh
+
+                            export PROJECT_NAME="Medical Appointment API"
+                            export DEPLOYMENT_STATUS="SUCCESS"
+
+                            bash scripts/send-health-report.sh
+                        ''',
+                        returnStatus: true
+                    )
+
+                    if (emailStatus != 0) {
+                        echo "WARNING: Email or health check failed. Exit code: ${emailStatus}"
+                        currentBuild.result = 'UNSTABLE'
+                    } else {
+                        echo 'Health report email sent successfully.'
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // FAILURE NOTIFICATION
+        // ==========================================
+
+        failure {
+            echo 'CD pipeline failed. Check the stage logs.'
+        }
+
+        // ==========================================
+        // ALWAYS EXECUTE
+        // ==========================================
+
+        always {
+            echo 'Generic Java CD pipeline finished.'
+        }
     }
-} 
 }
